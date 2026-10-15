@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hand Gesture Drag & Drop Quiz</title>
+  
+  <!-- MediaPipe Hands Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .app-header {
+      text-align: center;
+      margin-top: 20px;
+      margin-bottom: 15px;
+    }
+
+    .app-header h1 {
+      margin: 0 0 4px 0;
+      font-size: 2.2rem;
+      color: #38bdf8;
+      text-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .author-tag {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #f43f5e;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+      text-shadow: 0 0 8px rgba(244, 63, 94, 0.5);
+      font-family: monospace;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      background: #334155;
+      color: #cbd5e1;
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.open {
+      background: #0284c7;
+      color: #fff;
+    }
+
+    .status-badge.closed {
+      background: #16a34a;
+      color: #fff;
+      box-shadow: 0 0 12px rgba(22, 163, 74, 0.6);
+    }
+
+    /* TOP DECK LIST CONTAINER */
+    .top-decks-wrapper {
+      width: 90%;
+      max-width: 850px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    .deck-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .deck-section-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-input {
+      background: #0f172a;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      width: 220px;
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: #38bdf8;
+    }
+
+    /* Grid/Flex List of Decks at the Top */
+    .deck-cards-list {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      scroll-behavior: smooth;
+    }
+
+    .deck-cards-list::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .deck-cards-list::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 3px;
+    }
+
+    .deck-card {
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      padding: 10px 16px;
+      min-width: 180px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .deck-card:hover {
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+
+    .deck-card.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    .deck-card-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    .btn-delete-mini {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: none;
+      border-radius: 4px;
+      padding: 2px 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+
+    .btn-delete-mini:hover {
+      background: #dc2626;
+      color: white;
+    }
+
+    /* Controls Panel */
+    .control-panel {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: #2563eb;
+      color: white;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+
+    .btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-2px);
+    }
+
+    .btn-restart {
+      background: #eab308;
+      color: #0f172a;
+    }
+
+    .btn-restart:hover {
+      background: #ca8a04;
+    }
+
+    .btn-secondary {
+      background: #475569;
+    }
+
+    .btn-secondary:hover {
+      background: #334155;
+    }
+
+    .btn-camera {
+      background: #16a34a;
+    }
+
+    .btn-camera.off {
+      background: #dc2626;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    /* Quiz Area */
+    .quiz-stage {
+      position: relative;
+      width: 90%;
+      max-width: 850px;
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 520px;
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      background: #334155;
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #38bdf8;
+      transition: width 0.3s ease;
+    }
+
+    /* Question Header */
+    .question-header {
+      font-size: 1.6rem;
+      font-weight: 700;
+      text-align: center;
+      color: #f1f5f9;
+      margin-bottom: 20px;
+      line-height: 1.4;
+      max-width: 750px;
+    }
+
+    /* Basketball Hoop */
+    .drop-zone-wrapper {
+      margin-bottom: 25px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    .drop-zone {
+      width: 100%;
+      max-width: 320px;
+      height: 150px;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      position: relative;
+      transition: all 0.2s ease;
+      padding-bottom: 10px;
+    }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      width: 160px;
+      height: 100px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 5px solid #dc2626;
+      border-radius: 8px;
+      box-shadow: inset 0 0 0 3px #1e293b, 0 4px 10px rgba(0,0,0,0.3);
+      z-index: 1;
+    }
+
+    .drop-zone::after {
+      content: '';
+      position: absolute;
+      top: 75px;
+      width: 90px;
+      height: 55px;
+      border: 4px solid #f97316;
+      border-top: none;
+      border-radius: 0 0 45px 45px;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(255,255,255,0.4),
+        rgba(255,255,255,0.4) 5px,
+        transparent 5px,
+        transparent 10px
+      );
+      box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+      z-index: 3;
+      transition: transform 0.2s ease;
+    }
+
+    .drop-zone.hovered::after {
+      transform: scale(1.15);
+      border-color: #ef4444;
+    }
+
+    .drop-zone-label {
+      position: absolute;
+      top: 15px;
+      z-index: 2;
+      color: #1e293b;
+      font-weight: 800;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Options */
+    .options-container {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .draggable-card {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+      padding: 18px 28px;
+      border-radius: 12px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: grab;
+      user-select: none;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s;
+      border: 2px solid #60a5fa;
+      touch-action: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-width: 180px;
+      max-width: 320px;
+      position: relative;
+    }
+
+    .draggable-card:hover {
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+    }
+
+    .draggable-card.dragging {
+      background: radial-gradient(circle at 30% 30%, #ea580c, #c2410c, #9a3412) !important;
+      color: white !important;
+      width: 110px !important;
+      height: 110px !important;
+      min-width: 110px !important;
+      max-width: 110px !important;
+      padding: 10px !important;
+      border-radius: 50% !important;
+      font-size: 0.95rem !important;
+      border: 2px solid #7c2d12 !important;
+      box-shadow: inset -5px -5px 12px rgba(0,0,0,0.6), inset 3px 3px 8px rgba(255,255,255,0.4), 0 12px 25px rgba(0,0,0,0.6) !important;
+      cursor: grabbing;
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    .draggable-card.dragging::before, 
+    .draggable-card.dragging::after {
+      content: '';
+      position: absolute;
+      background: #1c1917;
+      pointer-events: none;
+    }
+
+    .draggable-card.dragging::before {
+      width: 100%;
+      height: 3px;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+    }
+
+    .draggable-card.dragging::after {
+      height: 100%;
+      width: 3px;
+      left: 50%;
+      top: 0;
+      transform: translateX(-50%);
+    }
+
+    .draggable-card span {
+      position: relative;
+      z-index: 2;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+      word-break: break-word;
+      line-height: 1.2;
+    }
+
+    /* Feedback Banner overlay */
+    .feedback-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(4px);
+      z-index: 1500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .feedback-overlay.show {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .feedback-icon {
+      font-size: 5rem;
+      margin-bottom: 10px;
+      animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .feedback-text {
+      font-size: 2.2rem;
+      font-weight: 800;
+    }
+
+    .feedback-overlay.correct .feedback-text {
+      color: #4ade80;
+    }
+
+    .feedback-overlay.incorrect .feedback-text {
+      color: #f87171;
+    }
+
+    .feedback-sub {
+      font-size: 1.2rem;
+      color: #cbd5e1;
+      margin-top: 10px;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Video Feed Box */
+    .video-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 200px;
+      height: 150px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #38bdf8;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+      background: #000;
+      z-index: 2000;
+    }
+
+    #webcam {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #cursor-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Results Screen */
+    .results-card {
+      text-align: center;
+      padding: 30px;
+    }
+
+    .results-card h2 {
+      font-size: 2.5rem;
+      color: #38bdf8;
+      margin-bottom: 10px;
+    }
+
+    .score-circle {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: 6px solid #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 20px auto;
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .modal-content {
+      background: #1e293b;
+      padding: 25px;
+      border-radius: 14px;
+      max-width: 650px;
+      width: 100%;
+      border: 1px solid #475569;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-content pre {
+      background: #0f172a;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 0.88rem;
+      border: 1px solid #334155;
+    }
+
+    .close-modal {
+      float: right;
+      cursor: pointer;
+      font-size: 1.5rem;
+      color: #94a3b8;
+    }
+
+    .close-modal:hover {
+      color: #fff;
+    }
+
+    .prompt-box {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 15px;
+      border-radius: 8px;
+      color: #38bdf8;
+      font-family: monospace;
+      font-size: 0.88rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      user-select: all;
+      margin-top: 10px;
+    }
+
+    /* Responsiveness */
+    @media (max-width: 600px) {
+      .app-header h1 { font-size: 1.6rem; }
+      .question-header { font-size: 1.2rem; }
+      .draggable-card { font-size: 1rem; padding: 12px 18px; min-width: 130px; }
+      .drop-zone { height: 120px; }
+      .video-container { width: 140px; height: 105px; bottom: 10px; right: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Pointer Canvas for Hand Cursor -->
+  <canvas id="cursor-canvas"></canvas>
+
+  <div class="app-header">
+    <h1>🖐️ Hand-Tracing Drag & Drop Quiz</h1>
+    <div class="author-tag">by &lt;MaesTired/&gt;</div>
+    <div id="gesture-status" class="status-badge">Naghahanap ng Kamay...</div>
+  </div>
+
+  <!-- TOP DECK LIST SECTION -->
+  <div class="top-decks-wrapper">
+    <div class="deck-section-header">
+      <div class="deck-section-title">
+        📚 Mga Nakalistang Deck:
+      </div>
+      <input type="text" id="search-deck-input" class="search-input" placeholder="🔍 Maghanap ng Deck..." oninput="filterDecks()">
+    </div>
+    
+    <!-- List of Decks rendered as Cards -->
+    <div class="deck-cards-list" id="deck-cards-list">
+      <!-- Dynamic Deck Cards Go Here -->
+    </div>
+  </div>
+
+  <!-- Control Buttons -->
+  <div class="control-panel">
+    <button id="camera-toggle-btn" class="btn btn-camera" onclick="toggleCamera()">
+      📷 Camera: ON
+    </button>
+
+    <button class="btn btn-restart" onclick="restartQuiz()">
+      🔄 Restart Deck
+    </button>
+
+    <label for="json-upload" class="btn">
+      📁 Mag-upload ng JSON
+    </label>
+    <input type="file" id="json-upload" accept=".json">
+
+    <button class="btn btn-secondary" onclick="showTemplateModal()">
+      📄 AI Prompt & Template
+    </button>
+  </div>
+
+  <!-- Quiz Stage -->
+  <div class="quiz-stage" id="quiz-stage">
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div id="question-text" class="question-header">
+      Naglo-load ng mga tanong...
+    </div>
+
+    <div class="drop-zone-wrapper">
+      <div class="drop-zone" id="drop-zone">
+        <div class="drop-zone-label">I-SHOOT DITO</div>
+      </div>
+    </div>
+
+    <div class="options-container" id="options-container">
+      <!-- Options rendered here -->
+    </div>
+
+    <!-- Instant Feedback Overlay -->
+    <div class="feedback-overlay" id="feedback-overlay">
+      <div class="feedback-icon" id="feedback-icon">✔</div>
+      <div class="feedback-text" id="feedback-text">TAMA!</div>
+      <div class="feedback-sub" id="feedback-sub">Lumilipat sa susunod na tanong...</div>
+    </div>
+  </div>
+
+  <!-- Small Webcam Feed Box -->
+  <div class="video-container">
+    <video id="webcam" autoplay playsinline muted></video>
+  </div>
+
+  <!-- JSON Format & Prompt Modal -->
+  <div class="modal" id="template-modal">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeTemplateModal()">&times;</span>
+      <h3 style="color: #38bdf8; margin-top: 0;">🤖 Prompt para sa AI (ChatGPT / Gemini / Claude)</h3>
+      <p style="color: #cbd5e1; font-size: 0.9rem;">
+        Kopyahin ang prompt na ito at i-paste sa ChatGPT o Gemini upang gumawa agad ng JSON file ng iyong mga tanong:
+      </p>
+
+      <div class="prompt-box" id="ai-prompt-text">Gumawa ka ng valid JSON array para sa isang quiz. Ang bawat item ay dapat may "id" (number), "question" (string), "options" (array ng 3 o 4 na pagpipilian), at "answer" (string na eksaktong kapareho ng isa sa mga pagpipilian). Sagutin lamang ako gamit ang JSON codeblock nang walang ibang karagdagang text. Paksa: [ILAGAY ANG PAKSA DITO]</div>
+
+      <button class="btn btn-secondary" style="margin-top: 8px; margin-bottom: 20px;" onclick="copyAiPrompt()">
+        📋 Kopyahin ang AI Prompt
+      </button>
+
+      <h3 style="color: #38bdf8;">Halimbawa ng JSON Format Structure</h3>
+      <pre><code>[
+  {
+    "id": 1,
+    "question": "Ano ang pambansang ibon ng Pilipinas?",
+    "options": ["Maya", "Agila", "Kalaw"],
+    "answer": "Agila"
+  },
+  {
+    "id": 2,
+    "question": "Sino ang pambansang bayani ng Pilipinas?",
+    "options": ["Andres Bonifacio", "Jose Rizal", "Emilio Aguinaldo"],
+    "answer": "Jose Rizal"
+  }
+]</code></pre>
+
+      <button class="btn" style="margin-top: 10px;" onclick="downloadSampleJSON()">
+        ⬇️ I-download ang Sample JSON File
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* Audio Effects Generator */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'correct') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else if (type === 'incorrect') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.setValueAtTime(110, now + 0.15);
+
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+
+        osc.start(now);
+        osc.stop(now + 0.45);
+      }
+    }
+
+    /* Questions & Decks Management with localStorage */
+    const DEFAULT_DECK = {
+      name: "Default Deck (General Knowledge)",
+      data: [
+        {
+          id: 1,
+          question: "Ano ang pambansang ibon ng Pilipinas?",
+          options: ["Maya", "Agila", "Maya Pula"],
+          answer: "Agila"
+        },
+        {
+          id: 2,
+          question: "Sino ang pambansang bayani ng Pilipinas?",
+          options: ["Andres Bonifacio", "Jose Rizal", "Apolinario Mabini"],
+          answer: "Jose Rizal"
+        },
+        {
+          id: 3,
+          question: "Ilang kulay mayroon ang watawat ng Pilipinas (kasama ang puti)?",
+          options: ["3", "4", "5"],
+          answer: "4"
+        }
+      ]
+    };
+
+    let questionDecks = {
+      default: DEFAULT_DECK
+    };
+
+    function loadDecksFromStorage() {
+      const stored = localStorage.getItem('hand_quiz_decks');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          questionDecks = { default: DEFAULT_DECK, ...parsed };
+        } catch(e) {
+          questionDecks = { default: DEFAULT_DECK };
+        }
+      }
+    }
+
+    function saveDecksToStorage() {
+      const customDecks = { ...questionDecks };
+      delete customDecks.default;
+      localStorage.setItem('hand_quiz_decks', JSON.stringify(customDecks));
+    }
+
+    let activeDeckKey = 'default';
+    let quizData = DEFAULT_DECK.data;
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let isTransitioning = false;
+
+    // Camera State
+    let cameraEnabled = true;
+    let cameraInstance = null;
+    let handX = 0, handY = 0;
+    let isPinching = false;
+    let grabbedElement = null;
+    let grabOffsetX = 0, grabOffsetY = 0;
+
+    // Canvas Setup
+    const canvas = document.getElementById('cursor-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    /* Select Deck */
+    function selectDeck(deckKey) {
+      if (questionDecks[deckKey]) {
+        activeDeckKey = deckKey;
+        quizData = questionDecks[deckKey].data;
+        renderTopDecksList();
+        restartQuiz();
+      }
+    }
+
+    /* Delete Deck */
+    function deleteDeck(deckKey, event) {
+      event.stopPropagation();
+      if (deckKey === 'default') return;
+
+      if (confirm(`Sigurado ka bang gusto mong burahin ang deck na ito?`)) {
+        delete questionDecks[deckKey];
+        saveDecksToStorage();
+        if (activeDeckKey === deckKey) {
+          activeDeckKey = 'default';
+          quizData = DEFAULT_DECK.data;
+        }
+        renderTopDecksList();
+        restartQuiz();
+      }
+    }
+
+    function filterDecks() {
+      const query = document.getElementById('search-deck-input').value.toLowerCase();
+      renderTopDecksList(query);
+    }
+
+    /* Render Deck Cards List at the Top */
+    function renderTopDecksList(filter = '') {
+      const container = document.getElementById('deck-cards-list');
+      container.innerHTML = '';
+
+      Object.keys(questionDecks).forEach(key => {
+        const deck = questionDecks[key];
+        if (deck.name.toLowerCase().includes(filter.toLowerCase())) {
+          const card = document.createElement('div');
+          card.className = `deck-card ${key === activeDeckKey ? 'active' : ''}`;
+          card.onclick = () => selectDeck(key);
+
+          const title = document.createElement('div');
+          title.className = 'deck-card-title';
+          title.innerText = deck.name;
+          card.appendChild(title);
+
+          if (key !== 'default') {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete-mini';
+            delBtn.innerText = '✕';
+            delBtn.title = 'Burahin ang deck';
+            delBtn.onclick = (e) => deleteDeck(key, e);
+            card.appendChild(delBtn);
+          }
+
+          container.appendChild(card);
+        }
+      });
+    }
+
+    /* Render Current Question */
+    function loadQuestion() {
+      isTransitioning = false;
+      const feedbackOverlay = document.getElementById('feedback-overlay');
+      const dropZoneEl = document.getElementById('drop-zone');
+      const questionTextEl = document.getElementById('question-text');
+      const progressBarEl = document.getElementById('progress-bar');
+      const optionsContainerEl = document.getElementById('options-container');
+
+      if (feedbackOverlay) feedbackOverlay.classList.remove('show', 'correct', 'incorrect');
+      if (dropZoneEl) {
+        dropZoneEl.classList.remove('hovered');
+        dropZoneEl.innerHTML = '<div class="drop-zone-label">I-SHOOT DITO</div>';
+      }
+
+      const currentQ = quizData[currentQuestionIndex];
+      if (questionTextEl) questionTextEl.innerText = `${currentQuestionIndex + 1}. ${currentQ.question}`;
+      
+      if (progressBarEl) {
+        const progressPercent = ((currentQuestionIndex) / quizData.length) * 100;
+        progressBarEl.style.width = `${progressPercent}%`;
+      }
+
+      if (optionsContainerEl) {
+        optionsContainerEl.innerHTML = '';
+        const shuffledOptions = [...currentQ.options].sort(() => Math.random() - 0.5);
+
+        shuffledOptions.forEach((opt) => {
+          const card = document.createElement('div');
+          card.className = 'draggable-card';
+          card.dataset.value = opt;
+          
+          const label = document.createElement('span');
+          label.innerText = opt;
+          card.appendChild(label);
+
+          optionsContainerEl.appendChild(card);
+        });
+      }
+    }
+
+    /* Auto Next Question Functionality */
+    function processAnswer(selectedAnswer) {
+      if (isTransitioning) return;
+      isTransitioning = true;
+
+      const currentQ = quizData[currentQuestionIndex];
+      const isCorrect = (selectedAnswer === currentQ.answer);
+
+      if (isCorrect) {
+        score++;
+        playSound('correct');
+      } else {
+        playSound('incorrect');
+      }
+
+      const feedbackOverlay = document.getElementById('feedback-overlay');
+      const feedbackIcon = document.getElementById('feedback-icon');
+      const feedbackText = document.getElementById('feedback-text');
+      const feedbackSub = document.getElementById('feedback-sub');
+
+      feedbackOverlay.className = `feedback-overlay show ${isCorrect ? 'correct' : 'incorrect'}`;
+      feedbackIcon.innerText = isCorrect ? '✔' : '✖';
+      feedbackText.innerText = isCorrect ? 'TAMA!' : 'MALI!';
+      feedbackSub.innerText = isCorrect 
+        ? 'Magaling! Lumilipat sa susunod...' 
+        : `Ang tamang sagot ay: ${currentQ.answer}`;
+
+      setTimeout(() => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < quizData.length) {
+          loadQuestion();
+        } else {
+          showFinalResults();
+        }
+      }, 2000);
+    }
+
+    /* Show Final Results */
+    function showFinalResults() {
+      const progressBarEl = document.getElementById('progress-bar');
+      if (progressBarEl) progressBarEl.style.width = '100%';
+      
+      const stage = document.getElementById('quiz-stage');
+      const percentage = Math.round((score / quizData.length) * 100);
+      
+      stage.innerHTML = `
+        <div class="results-card">
+          <h2>Tapos na ang Quiz!</h2>
+          <p style="font-size: 1.2rem; color: #cbd5e1;">Narito ang iyong nakuha na marka:</p>
+          <div class="score-circle">
+            ${score} / ${quizData.length}
+          </div>
+          <p style="font-size: 1.3rem; font-weight: bold; color: #38bdf8;">${percentage}% Accuracy</p>
+          <button class="btn" onclick="restartQuiz()" style="margin-top: 20px;">
+            🔄 Ulitin ang Quiz
+          </button>
+        </div>
+      `;
+    }
+
+    /* Restart Quiz */
+    function restartQuiz() {
+      const stage = document.getElementById('quiz-stage');
+      stage.innerHTML = `
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <div id="question-text" class="question-header">
+          Naglo-load ng mga tanong...
+        </div>
+
+        <div class="drop-zone-wrapper">
+          <div class="drop-zone" id="drop-zone">
+            <div class="drop-zone-label">I-SHOOT DITO</div>
+          </div>
+        </div>
+
+        <div class="options-container" id="options-container">
+        </div>
+
+        <div class="feedback-overlay" id="feedback-overlay">
+          <div class="feedback-icon" id="feedback-icon">✔</div>
+          <div class="feedback-text" id="feedback-text">TAMA!</div>
+          <div class="feedback-sub" id="feedback-sub">Lumilipat sa susunod na tanong...</div>
+        </div>
+      `;
+
+      currentQuestionIndex = 0;
+      score = 0;
+      loadQuestion();
+    }
+
+    /* MediaPipe Camera Setup */
+    const videoElement = document.getElementById('webcam');
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults(onResults);
+
+    function startCamera() {
+      if (!cameraInstance) {
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if (cameraEnabled) {
+              await hands.send({ image: videoElement });
+            }
+          },
+          width: 640,
+          height: 480
+        });
+      }
+      cameraInstance.start();
+    }
+
+    function toggleCamera() {
+      cameraEnabled = !cameraEnabled;
+      const btn = document.getElementById('camera-toggle-btn');
+      const statusBadge = document.getElementById('gesture-status');
+
+      if (cameraEnabled) {
+        btn.innerText = "📷 Camera: ON";
+        btn.className = "btn btn-camera";
+        startCamera();
+      } else {
+        btn.innerText = "📷 Camera: OFF";
+        btn.className = "btn btn-camera off";
+        if (cameraInstance) {
+          cameraInstance.stop();
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (statusBadge) {
+          statusBadge.innerText = "Naka-OFF ang Camera";
+          statusBadge.className = "status-badge";
+        }
+      }
+    }
+
+    function onResults(results) {
+      if (!cameraEnabled) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const statusBadge = document.getElementById('gesture-status');
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+
+        const indexTip = landmarks[8];
+        const thumbTip = landmarks[4];
+
+        handX = (1 - indexTip.x) * canvas.width;
+        handY = indexTip.y * canvas.height;
+
+        const thumbX = (1 - thumbTip.x) * canvas.width;
+        const thumbY = thumbTip.y * canvas.height;
+
+        const distance = Math.hypot(handX - thumbX, handY - thumbY);
+        const pinchThreshold = 45;
+
+        const newlyPinching = distance < pinchThreshold;
+
+        if (newlyPinching !== isPinching) {
+          isPinching = newlyPinching;
+          if (isPinching) {
+            handleGrabStart();
+          } else {
+            handleGrabEnd();
+          }
+        }
+
+        if (statusBadge) {
+          if (isPinching) {
+            statusBadge.innerText = "✊ NAKAKAPIT (Grabbing)";
+            statusBadge.className = "status-badge closed";
+          } else {
+            statusBadge.innerText = "✋ NAKABUKAS (Open Hand)";
+            statusBadge.className = "status-badge open";
+          }
+        }
+
+        drawVirtualCursor(handX, handY, isPinching);
+
+        if (grabbedElement && isPinching) {
+          grabbedElement.style.position = 'fixed';
+          grabbedElement.style.left = `${handX - grabOffsetX}px`;
+          grabbedElement.style.top = `${handY - grabOffsetY}px`;
+
+          const dropZoneCurrent = document.getElementById('drop-zone');
+          if (dropZoneCurrent) {
+            const dropRect = dropZoneCurrent.getBoundingClientRect();
+            if (
+              handX >= dropRect.left &&
+              handX <= dropRect.right &&
+              handY >= dropRect.top &&
+              handY <= dropRect.bottom
+            ) {
+              dropZoneCurrent.classList.add('hovered');
+            } else {
+              dropZoneCurrent.classList.remove('hovered');
+            }
+          }
+        }
+
+      } else {
+        if (statusBadge) {
+          statusBadge.innerText = "Naghahanap ng Kamay...";
+          statusBadge.className = "status-badge";
+        }
+        if (grabbedElement) handleGrabEnd();
+      }
+    }
+
+    function drawVirtualCursor(x, y, pinching) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, pinching ? 18 : 25, 0, Math.PI * 2);
+      ctx.fillStyle = pinching ? '#22c55e' : '#38bdf8';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      ctx.font = pinching ? '16px sans-serif' : '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pinching ? '✊' : '✋', x, y);
+      ctx.restore();
+    }
+
+    function handleGrabStart() {
+      if (isTransitioning) return;
+
+      const elements = document.querySelectorAll('.draggable-card');
+      elements.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (
+          handX >= rect.left &&
+          handX <= rect.right &&
+          handY >= rect.top &&
+          handY <= rect.bottom
+        ) {
+          grabbedElement = el;
+          grabOffsetX = 55;
+          grabOffsetY = 55;
+          el.classList.add('dragging');
+        }
+      });
+    }
+
+    function handleGrabEnd() {
+      if (!grabbedElement) return;
+
+      const dropZoneCurrent = document.getElementById('drop-zone');
+      if (!dropZoneCurrent) return;
+
+      const dropRect = dropZoneCurrent.getBoundingClientRect();
+
+      if (
+        handX >= dropRect.left &&
+        handX <= dropRect.right &&
+        handY >= dropRect.top &&
+        handY <= dropRect.bottom
+      ) {
+        const selectedVal = grabbedElement.dataset.value;
+        grabbedElement.remove();
+        grabbedElement = null;
+
+        processAnswer(selectedVal);
+      } else {
+        grabbedElement.style.position = 'static';
+        grabbedElement.style.left = 'auto';
+        grabbedElement.style.top = 'auto';
+        grabbedElement.classList.remove('dragging');
+        grabbedElement = null;
+      }
+
+      dropZoneCurrent.classList.remove('hovered');
+    }
+
+    /* Upload JSON File */
+    document.getElementById('json-upload').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const uploaded = JSON.parse(e.target.result);
+          if (Array.isArray(uploaded) && uploaded.length > 0 && uploaded[0].question) {
+            const deckKey = `deck_${Date.now()}`;
+            const deckName = file.name.replace('.json', '');
+
+            questionDecks[deckKey] = {
+              name: `📁 ${deckName}`,
+              data: uploaded
+            };
+
+            saveDecksToStorage();
+            renderTopDecksList();
+            selectDeck(deckKey);
+
+            alert("Mataagumpay na na-upload at na-save ang iyong mga tanong!");
+          } else {
+            alert("Maling format! Siguraduhing tama ang JSON structure.");
+          }
+        } catch (err) {
+          alert("Nagka-error sa pagbasa ng JSON file.");
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    /* Modal Controls */
+    function showTemplateModal() {
+      document.getElementById('template-modal').style.display = 'flex';
+    }
+
+    function closeTemplateModal() {
+      document.getElementById('template-modal').style.display = 'none';
+    }
+
+    function copyAiPrompt() {
+      const text = document.getElementById('ai-prompt-text').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Na-copy na ang AI Prompt sa iyong clipboard!");
+      });
+    }
+
+    function downloadSampleJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(quizData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "sample_questions.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // Init App
+    loadDecksFromStorage();
+    renderTopDecksList();
+    loadQuestion();
+    startCamera();
+  </script>
+</body>
+</html>
